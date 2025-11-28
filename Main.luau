@@ -3,9 +3,11 @@ Library.Windows = {}
 
 local function New(ClassName, Properties)
 	local Object = Instance.new(ClassName)
-	if Properties then for Property, Value in next, Properties do
+	if Properties then 
+		for Property, Value in next, Properties do
 			Object[Property] = Value
-		end end
+		end 
+	end
 	return Object
 end
 
@@ -13,9 +15,7 @@ local TweenService = game:GetService("TweenService")
 
 function Library:CreateWindow(title, subtitle)
 	local Window = {}
-
 	local windowIndex = #Library.Windows + 1
-	local xOffset = (windowIndex - 1) * 0.05
 
 	local SeizureUI = New("ScreenGui", {
 		Name = "SeizureUI_" .. windowIndex,
@@ -31,7 +31,7 @@ function Library:CreateWindow(title, subtitle)
 		BackgroundColor3 = Color3.fromRGB(7, 7, 7),
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
-		Position = UDim2.new(0.540589452 + xOffset, 0, 0.453049481, 0),
+		Position = UDim2.new(0.540589452 + (windowIndex - 1) * 0.05, 0, 0.453049481, 0),
 		Size = UDim2.new(0, 0, 0, 0),
 		BackgroundTransparency = 1
 	})
@@ -41,7 +41,7 @@ function Library:CreateWindow(title, subtitle)
 		Parent = Background
 	})
 
-	New("UIStroke", {
+	local BackgroundStroke = New("UIStroke", {
 		Color = Color3.fromRGB(25, 25, 25),
 		Thickness = 1,
 		Transparency = 1,
@@ -54,12 +54,9 @@ function Library:CreateWindow(title, subtitle)
 	}):Play()
 
 	task.wait(0.3)
-	local stroke = Background:FindFirstChildOfClass("UIStroke")
-	if stroke then
-		TweenService:Create(stroke, TweenInfo.new(0.3), {
-			Transparency = 0
-		}):Play()
-	end
+	TweenService:Create(BackgroundStroke, TweenInfo.new(0.3), {
+		Transparency = 0
+	}):Play()
 
 	New("TextLabel", {
 		Name = "title",
@@ -132,69 +129,7 @@ function Library:CreateWindow(title, subtitle)
 		ScrollBarThickness = 4
 	})
 
-	local ContentPadding = New("UIPadding", {
-		Parent = ContentContainer,
-		PaddingLeft = UDim.new(0, 10),
-		PaddingRight = UDim.new(0, 10),
-		PaddingTop = UDim.new(0, 10)
-	})
-
-	local ContentLayout = New("UIListLayout", {
-		Parent = ContentContainer,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 8)
-	})
-
-	ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		ContentContainer.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 20)
-	end)
-
-	local ContentBackground = New("Frame", {
-		Parent = Background,
-		BackgroundColor3 = Color3.fromRGB(15, 15, 15),
-		BackgroundTransparency = 0.3,
-		BorderSizePixel = 0,
-		Position = UDim2.new(0.237729788, 0, 0.115000002, 0),
-		Size = UDim2.new(0, 497, 0, 354)
-	})
-
-	New("UICorner", {
-		CornerRadius = UDim.new(0.00999999978, 0),
-		Parent = ContentBackground
-	})
-
-	New("UIStroke", {
-		Color = Color3.fromRGB(25, 25, 25),
-		Thickness = 1,
-		Parent = ContentBackground
-	})
-
-	local TabContainer = New("Frame", {
-		Name = "TabContainer",
-		Parent = Background,
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0.019, 0, 0.141499937, 0),
-		Size = UDim2.new(0, 135, 0, 324)
-	})
-
-	New("UIListLayout", {
-		Parent = TabContainer,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 8)
-	})
-
-	local ContentContainer = New("ScrollingFrame", {
-		Name = "ContentContainer",
-		Parent = Background,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Position = UDim2.new(0.236791313, 0, 0.116499938, 0),
-		Size = UDim2.new(0.763208568, 0, 0.88350004, 0),
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		ScrollBarThickness = 4
-	})
-
-	local ContentPadding = New("UIPadding", {
+	New("UIPadding", {
 		Parent = ContentContainer,
 		PaddingLeft = UDim.new(0, 10),
 		PaddingRight = UDim.new(0, 10),
@@ -214,8 +149,7 @@ function Library:CreateWindow(title, subtitle)
 	Window.Tabs = {}
 	Window.CurrentTab = nil
 
-	local dragging, dragInput, dragStart, startPos
-	local dragTween
+	local dragging, dragInput, dragStart, startPos, dragTween
 
 	Background.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -606,7 +540,6 @@ function Library:CreateWindow(title, subtitle)
 	end
 
 	table.insert(Library.Windows, Window)
-
 	return Window
 end
 
