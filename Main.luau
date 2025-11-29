@@ -206,7 +206,8 @@ function Library:CreateWindow(title, subtitle)
 			Text = name,
 			TextColor3 = isFirstTab and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150),
 			TextSize = 14,
-			TextXAlignment = Enum.TextXAlignment.Left
+			TextXAlignment = Enum.TextXAlignment.Left,
+			AutoButtonColor = false
 		})
 
 		New("UIPadding", {
@@ -219,24 +220,38 @@ function Library:CreateWindow(title, subtitle)
 			Parent = TabButton
 		})
 
-		New("UIStroke", {
+		local TabStroke = New("UIStroke", {
 			Color = Color3.fromRGB(116, 116, 116),
 			Thickness = 1,
-			Transparency = 0.81,
+			Transparency = isFirstTab and 0.80 or 1,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			Parent = TabButton
 		})
 
 		TabButton.MouseButton1Click:Connect(function()
+			if Window.CurrentTab == Tab then return end
+
 			for _, tab in pairs(Window.Tabs) do
 				TweenService:Create(tab.Button, TweenInfo.new(0.2), {
 					BackgroundTransparency = 1,
 					TextColor3 = Color3.fromRGB(150, 150, 150)
 				}):Play()
+
+				local stroke = tab.Button:FindFirstChildOfClass("UIStroke")
+				if stroke then
+					TweenService:Create(stroke, TweenInfo.new(0.2), {
+						Transparency = 1
+					}):Play()
+				end
 			end
 
 			TweenService:Create(TabButton, TweenInfo.new(0.2), {
 				BackgroundTransparency = 0,
 				TextColor3 = Color3.fromRGB(255, 255, 255)
+			}):Play()
+
+			TweenService:Create(TabStroke, TweenInfo.new(0.2), {
+				Transparency = 0.80
 			}):Play()
 
 			Window.CurrentTab = Tab
@@ -442,7 +457,8 @@ function Library:CreateWindow(title, subtitle)
 					Parent = ButtonFrame,
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 1, 0),
-					Text = ""
+					Text = "",
+					AutoButtonColor = false
 				})
 
 				ClickButton.MouseButton1Click:Connect(function()
@@ -511,7 +527,8 @@ function Library:CreateWindow(title, subtitle)
 					Parent = ToggleFrame,
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 1, 0),
-					Text = ""
+					Text = "",
+					AutoButtonColor = false
 				})
 
 				ClickButton.MouseButton1Click:Connect(function()
