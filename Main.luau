@@ -5,17 +5,33 @@ local function New(ClassName, Properties)
 	local Object = Instance.new(ClassName)
 	if Properties then 
 		for Property, Value in next, Properties do
-			Object[Property] = Value
+			pcall(function()
+				Object[Property] = Value
+			end)
 		end 
 	end
 	return Object
 end
 
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
-function Library:CreateWindow(title, subtitle)
+function Library:CreateWindow(config)
+	if type(config) ~= "table" then
+		warn("CreateWindow requires a config table")
+		return nil
+	end
+
 	local Window = {}
 	local windowIndex = #Library.Windows + 1
+
+	local title = tostring(config.Title or "RCash Hub")
+	local description = tostring(config.Description or "")
+
+	local connections = {}
+	local function addConnection(conn)
+		table.insert(connections, conn)
+	end
 
 	local SeizureUI = New("ScreenGui", {
 		Name = "SeizureUI_" .. windowIndex,
@@ -65,23 +81,33 @@ function Library:CreateWindow(title, subtitle)
 		Position = UDim2.new(0.0295828599, 0, 0.0304999929, 0),
 		Size = UDim2.new(0, 548, 0, 21),
 		Font = Enum.Font.GothamMedium,
-		Text = title or "RCash Hub",
+		Text = title,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left
 	})
 
-	New("TextLabel", {
-		Name = "subtitle",
+	if description ~= "" then
+		New("TextLabel", {
+			Name = "subtitle",
+			Parent = Background,
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0.0295828599, 0, 0.0639999956, 0),
+			Size = UDim2.new(0, 548, 0, 21),
+			Font = Enum.Font.Gotham,
+			Text = description,
+			TextColor3 = Color3.fromRGB(150, 150, 150),
+			TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Left
+		})
+	end
+
+	local TitleBar = New("Frame", {
+		Name = "TitleBar",
 		Parent = Background,
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0.0295828599, 0, 0.0639999956, 0),
-		Size = UDim2.new(0, 548, 0, 21),
-		Font = Enum.Font.Gotham,
-		Text = subtitle or "@RdotA",
-		TextColor3 = Color3.fromRGB(150, 150, 150),
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left
+		Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(1, 0, 0, 40)
 	})
 
 	local ContentBackground = New("Frame", {
@@ -142,40 +168,50 @@ function Library:CreateWindow(title, subtitle)
 		Padding = UDim.new(0, 8)
 	})
 
-	ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	addConnection(ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		ContentContainer.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 20)
-	end)
+	end))
 
 	Window.Tabs = {}
 	Window.CurrentTab = nil
+	Window.TabScrollPositions = {} -- Cache scroll positions
+	Window.CachedContent = {} -- Cache rendered content
 
 	local dragging, dragInput, dragStart, startPos, dragTween
 
-	Background.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			dragStart = input.Position
-			startPos = Background.Position
+	local function startDrag(inputPosition)
+		dragging = true
+		dragStart = inputPosition
+		startPos = Background.Position
 
-			if dragTween then
-				dragTween:Cancel()
-			end
-
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
+		if dragTween then
+			dragTween:Cancel()
 		end
-	end)
+	end
 
-	Background.InputChanged:Connect(function(input)
+	local function endDrag()
+		dragging = false
+	end
+
+	addConnection(TitleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			startDrag(input.Position)
+
+			addConnection(input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					endDrag()
+				end
+			end))
+		end
+	end))
+
+	addConnection(TitleBar.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseMovement then
 			dragInput = input
 		end
-	end)
+	end))
 
-	game:GetService("UserInputService").InputChanged:Connect(function(input)
+	addConnection(UserInputService.InputChanged:Connect(function(input)
 		if input == dragInput and dragging then
 			local delta = input.Position - dragStart
 			local newPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
@@ -189,9 +225,44 @@ function Library:CreateWindow(title, subtitle)
 			})
 			dragTween:Play()
 		end
-	end)
+	end))
+
+	-- Touch dragging support
+	addConnection(TitleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			startDrag(input.Position)
+		end
+	end))
+
+	addConnection(TitleBar.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch and dragging then
+			local delta = input.Position - dragStart
+			local newPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+
+			if dragTween then
+				dragTween:Cancel()
+			end
+
+			dragTween = TweenService:Create(Background, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = newPosition
+			})
+			dragTween:Play()
+		end
+	end))
+
+	addConnection(TitleBar.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			endDrag()
+		end
+	end))
 
 	function Window:CreateTab(name)
+		-- Validate input
+		if type(name) ~= "string" or name == "" then
+			warn("CreateTab requires a non-empty string name")
+			return nil
+		end
+
 		local Tab = {}
 		local isFirstTab = #Window.Tabs == 0
 
@@ -228,8 +299,13 @@ function Library:CreateWindow(title, subtitle)
 			Parent = TabButton
 		})
 
-		TabButton.MouseButton1Click:Connect(function()
+		addConnection(TabButton.MouseButton1Click:Connect(function()
 			if Window.CurrentTab == Tab then return end
+
+			-- Save current scroll position
+			if Window.CurrentTab then
+				Window.TabScrollPositions[Window.CurrentTab] = ContentContainer.CanvasPosition.Y
+			end
 
 			for _, tab in pairs(Window.Tabs) do
 				TweenService:Create(tab.Button, TweenInfo.new(0.2), {
@@ -256,10 +332,19 @@ function Library:CreateWindow(title, subtitle)
 
 			Window.CurrentTab = Tab
 			Window:RefreshContent()
-		end)
+
+			-- Restore scroll position
+			task.wait()
+			if Window.TabScrollPositions[Tab] then
+				ContentContainer.CanvasPosition = Vector2.new(0, Window.TabScrollPositions[Tab])
+			else
+				ContentContainer.CanvasPosition = Vector2.new(0, 0)
+			end
+		end))
 
 		Tab.Button = TabButton
 		Tab.Elements = {}
+		Tab.Name = name
 
 		table.insert(Window.Tabs, Tab)
 
@@ -268,6 +353,10 @@ function Library:CreateWindow(title, subtitle)
 		end
 
 		function Tab:AddParagraph(titleText, contentText)
+			-- Validate input
+			if type(titleText) ~= "string" then titleText = tostring(titleText or "") end
+			if type(contentText) ~= "string" then contentText = tostring(contentText or "") end
+
 			local Paragraph = {
 				Type = "Paragraph",
 				Title = titleText,
@@ -286,11 +375,22 @@ function Library:CreateWindow(title, subtitle)
 				Show = function()
 					Paragraph.Visible = true
 					Window:RefreshContent()
+				end,
+				SetTitle = function(self, newTitle)
+					Paragraph.Title = tostring(newTitle or "")
+					Window:RefreshContent()
+				end,
+				SetContent = function(self, newContent)
+					Paragraph.Content = tostring(newContent or "")
+					Window:RefreshContent()
 				end
 			}
 		end
 
 		function Tab:AddButton(text, callback)
+			if type(text) ~= "string" then text = tostring(text or "Button") end
+			if type(callback) ~= "function" then callback = function() end end
+
 			local Button = {
 				Type = "Button",
 				Text = text,
@@ -309,15 +409,23 @@ function Library:CreateWindow(title, subtitle)
 				Show = function()
 					Button.Visible = true
 					Window:RefreshContent()
+				end,
+				SetText = function(self, newText)
+					Button.Text = tostring(newText or "")
+					Window:RefreshContent()
 				end
 			}
 		end
 
 		function Tab:AddToggle(text, default, callback)
+			if type(text) ~= "string" then text = tostring(text or "Toggle") end
+			if type(default) ~= "boolean" then default = false end
+			if type(callback) ~= "function" then callback = function() end end
+
 			local Toggle = {
 				Type = "Toggle",
 				Text = text,
-				Value = default or false,
+				Value = default,
 				Callback = callback,
 				Visible = true
 			}
@@ -327,8 +435,10 @@ function Library:CreateWindow(title, subtitle)
 
 			return {
 				Set = function(self, value)
-					Toggle.Value = value
-					Window:RefreshContent()
+					if type(value) == "boolean" then
+						Toggle.Value = value
+						Window:RefreshContent()
+					end
 				end,
 				Hide = function()
 					Toggle.Visible = false
@@ -345,6 +455,7 @@ function Library:CreateWindow(title, subtitle)
 	end
 
 	function Window:RefreshContent()
+		-- Clear existing content
 		for _, child in pairs(ContentContainer:GetChildren()) do
 			if child:IsA("Frame") then
 				child:Destroy()
@@ -352,6 +463,8 @@ function Library:CreateWindow(title, subtitle)
 		end
 
 		if not Window.CurrentTab then return end
+
+		local cacheKey = Window.CurrentTab.Name
 
 		for _, element in pairs(Window.CurrentTab.Elements) do
 			if not element.Visible then continue end
@@ -413,12 +526,23 @@ function Library:CreateWindow(title, subtitle)
 					TextYAlignment = Enum.TextYAlignment.Top
 				})
 
+				-- Safe text size calculation with error handling
 				task.spawn(function()
 					task.wait()
-					local textService = game:GetService("TextService")
-					local titleSize = textService:GetTextSize(element.Title, 14, Enum.Font.GothamMedium, Vector2.new(Paragraph.AbsoluteSize.X - 24, math.huge))
-					local contentSize = textService:GetTextSize(element.Content, 13, Enum.Font.Gotham, Vector2.new(Paragraph.AbsoluteSize.X - 24, math.huge))
-					Paragraph.Size = UDim2.new(1, 0, 0, titleSize.Y + contentSize.Y + 32)
+					local success, result = pcall(function()
+						local textService = game:GetService("TextService")
+						local width = math.max(Paragraph.AbsoluteSize.X - 24, 100)
+						local titleSize = textService:GetTextSize(element.Title, 14, Enum.Font.GothamMedium, Vector2.new(width, math.huge))
+						local contentSize = textService:GetTextSize(element.Content, 13, Enum.Font.Gotham, Vector2.new(width, math.huge))
+						return titleSize.Y + contentSize.Y + 32
+					end)
+
+					if success and type(result) == "number" and result > 0 then
+						Paragraph.Size = UDim2.new(1, 0, 0, math.clamp(result, 50, 1000))
+					else
+						-- Fallback size if calculation fails
+						Paragraph.Size = UDim2.new(1, 0, 0, 100)
+					end
 				end)
 
 			elseif element.Type == "Button" then
@@ -461,15 +585,17 @@ function Library:CreateWindow(title, subtitle)
 					AutoButtonColor = false
 				})
 
-				ClickButton.MouseButton1Click:Connect(function()
+				addConnection(ClickButton.MouseButton1Click:Connect(function()
 					TweenService:Create(ButtonFrame, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
 					task.wait(0.1)
 					TweenService:Create(ButtonFrame, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
 
-					if element.Callback then
-						element.Callback()
-					end
-				end)
+					pcall(function()
+						if element.Callback then
+							element.Callback()
+						end
+					end)
+				end))
 
 			elseif element.Type == "Toggle" then
 				local ToggleFrame = New("Frame", {
@@ -531,23 +657,38 @@ function Library:CreateWindow(title, subtitle)
 					AutoButtonColor = false
 				})
 
-				ClickButton.MouseButton1Click:Connect(function()
+				addConnection(ClickButton.MouseButton1Click:Connect(function()
 					element.Value = not element.Value
 
 					TweenService:Create(Indicator, TweenInfo.new(0.2), {
 						BackgroundColor3 = element.Value and Color3.fromRGB(230, 230, 230) or Color3.fromRGB(30, 30, 30)
 					}):Play()
 
-					if element.Callback then
-						element.Callback(element.Value)
-					end
-				end)
+					pcall(function()
+						if element.Callback then
+							element.Callback(element.Value)
+						end
+					end)
+				end))
 			end
 		end
 	end
 
 	function Window:Destroy()
-		SeizureUI:Destroy()
+		for _, conn in pairs(connections) do
+			pcall(function()
+				conn:Disconnect()
+			end)
+		end
+
+		Window.CachedContent = nil
+		Window.TabScrollPositions = nil
+
+		pcall(function()
+			SeizureUI:Destroy()
+		end)
+
+		-- Remove from library
 		for i, win in pairs(Library.Windows) do
 			if win == Window then
 				table.remove(Library.Windows, i)
