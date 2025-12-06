@@ -5,33 +5,29 @@ local function New(ClassName, Properties)
 	local Object = Instance.new(ClassName)
 	if Properties then 
 		for Property, Value in next, Properties do
-			pcall(function()
-				Object[Property] = Value
-			end)
+			Object[Property] = Value
 		end 
 	end
 	return Object
 end
 
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 function Library:CreateWindow(config)
 	if type(config) ~= "table" then
-		warn("CreateWindow requires a config table")
+		warn("CreateWindow requires a table argument")
 		return nil
 	end
 
-	local Window = {}
-	local windowIndex = #Library.Windows + 1
+	local Window = {
+		Tabs = {},
+		CurrentTab = nil,
+		Connections = {}
+	}
 
+	local windowIndex = #Library.Windows + 1
 	local title = tostring(config.Title or "RCash Hub")
 	local description = tostring(config.Description or "")
-
-	local connections = {}
-	local function addConnection(conn)
-		table.insert(connections, conn)
-	end
 
 	local SeizureUI = New("ScreenGui", {
 		Name = "SeizureUI_" .. windowIndex,
@@ -69,10 +65,12 @@ function Library:CreateWindow(config)
 		BackgroundTransparency = 0
 	}):Play()
 
-	task.wait(0.3)
-	TweenService:Create(BackgroundStroke, TweenInfo.new(0.3), {
-		Transparency = 0
-	}):Play()
+	task.spawn(function()
+		task.wait(0.3)
+		TweenService:Create(BackgroundStroke, TweenInfo.new(0.3), {
+			Transparency = 0
+		}):Play()
+	end)
 
 	New("TextLabel", {
 		Name = "title",
@@ -111,6 +109,7 @@ function Library:CreateWindow(config)
 	})
 
 	local ContentBackground = New("Frame", {
+		Name = "ContentBackground",
 		Parent = Background,
 		BackgroundColor3 = Color3.fromRGB(15, 15, 15),
 		BackgroundTransparency = 0.3,
@@ -162,108 +161,54 @@ function Library:CreateWindow(config)
 		PaddingTop = UDim.new(0, 10)
 	})
 
-	local ContentLayout = New("UIListLayout", {
-		Parent = ContentContainer,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 8)
-	})
-
-	addConnection(ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		ContentContainer.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 20)
-	end))
-
-	Window.Tabs = {}
-	Window.CurrentTab = nil
-	Window.TabScrollPositions = {} -- Cache scroll positions
-	Window.CachedContent = {} -- Cache rendered content
-
 	local dragging, dragInput, dragStart, startPos, dragTween
 
-	local function startDrag(inputPosition)
+	local function startDrag(input)
 		dragging = true
-		dragStart = inputPosition
+		dragStart = input.Position
 		startPos = Background.Position
-
-		if dragTween then
-			dragTween:Cancel()
-		end
+		if dragTween then dragTween:Cancel() end
 	end
 
 	local function endDrag()
 		dragging = false
 	end
 
-	addConnection(TitleBar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			startDrag(input.Position)
+	local function updateDrag(input)
+		if not dragging then return end
+		local delta = input.Position - dragStart
+		local newPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		if dragTween then dragTween:Cancel() end
+		dragTween = TweenService:Create(Background, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = newPosition})
+		dragTween:Play()
+	end
 
-			addConnection(input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					endDrag()
-				end
+	table.insert(Window.Connections, TitleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			startDrag(input)
+			table.insert(Window.Connections, input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then endDrag() end
 			end))
 		end
 	end))
 
-	addConnection(TitleBar.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
+	table.insert(Window.Connections, TitleBar.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 			dragInput = input
 		end
 	end))
 
-	addConnection(UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			local newPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-
-			if dragTween then
-				dragTween:Cancel()
-			end
-
-			dragTween = TweenService:Create(Background, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Position = newPosition
-			})
-			dragTween:Play()
-		end
-	end))
-
-	-- Touch dragging support
-	addConnection(TitleBar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			startDrag(input.Position)
-		end
-	end))
-
-	addConnection(TitleBar.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch and dragging then
-			local delta = input.Position - dragStart
-			local newPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-
-			if dragTween then
-				dragTween:Cancel()
-			end
-
-			dragTween = TweenService:Create(Background, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Position = newPosition
-			})
-			dragTween:Play()
-		end
-	end))
-
-	addConnection(TitleBar.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			endDrag()
-		end
+	table.insert(Window.Connections, game:GetService("UserInputService").InputChanged:Connect(function(input)
+		if input == dragInput then updateDrag(input) end
 	end))
 
 	function Window:CreateTab(name)
-		-- Validate input
 		if type(name) ~= "string" or name == "" then
-			warn("CreateTab requires a non-empty string name")
+			warn("Tab name must be a non-empty string")
 			return nil
 		end
 
-		local Tab = {}
+		local Tab = {Elements = {}}
 		local isFirstTab = #Window.Tabs == 0
 
 		local TabButton = New("TextButton", {
@@ -281,15 +226,8 @@ function Library:CreateWindow(config)
 			AutoButtonColor = false
 		})
 
-		New("UIPadding", {
-			Parent = TabButton,
-			PaddingLeft = UDim.new(0, 5)
-		})
-
-		New("UICorner", {
-			CornerRadius = UDim.new(0.1, 0),
-			Parent = TabButton
-		})
+		New("UIPadding", {Parent = TabButton, PaddingLeft = UDim.new(0, 5)})
+		New("UICorner", {CornerRadius = UDim.new(0.1, 0), Parent = TabButton})
 
 		local TabStroke = New("UIStroke", {
 			Color = Color3.fromRGB(116, 116, 116),
@@ -299,13 +237,26 @@ function Library:CreateWindow(config)
 			Parent = TabButton
 		})
 
-		addConnection(TabButton.MouseButton1Click:Connect(function()
-			if Window.CurrentTab == Tab then return end
+		local TabContent = New("Frame", {
+			Name = "TabContent_" .. name,
+			Parent = ContentContainer,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 1, 0),
+			Visible = isFirstTab
+		})
 
-			-- Save current scroll position
-			if Window.CurrentTab then
-				Window.TabScrollPositions[Window.CurrentTab] = ContentContainer.CanvasPosition.Y
-			end
+		local TabLayout = New("UIListLayout", {
+			Parent = TabContent,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Padding = UDim.new(0, 8)
+		})
+
+		table.insert(Window.Connections, TabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			ContentContainer.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y + 20)
+		end))
+
+		table.insert(Window.Connections, TabButton.MouseButton1Click:Connect(function()
+			if Window.CurrentTab == Tab then return end
 
 			for _, tab in pairs(Window.Tabs) do
 				TweenService:Create(tab.Button, TweenInfo.new(0.2), {
@@ -315,10 +266,10 @@ function Library:CreateWindow(config)
 
 				local stroke = tab.Button:FindFirstChildOfClass("UIStroke")
 				if stroke then
-					TweenService:Create(stroke, TweenInfo.new(0.2), {
-						Transparency = 1
-					}):Play()
+					TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 1}):Play()
 				end
+
+				if tab.Content then tab.Content.Visible = false end
 			end
 
 			TweenService:Create(TabButton, TweenInfo.new(0.2), {
@@ -326,375 +277,254 @@ function Library:CreateWindow(config)
 				TextColor3 = Color3.fromRGB(255, 255, 255)
 			}):Play()
 
-			TweenService:Create(TabStroke, TweenInfo.new(0.2), {
-				Transparency = 0.80
-			}):Play()
+			TweenService:Create(TabStroke, TweenInfo.new(0.2), {Transparency = 0.80}):Play()
 
 			Window.CurrentTab = Tab
-			Window:RefreshContent()
-
-			-- Restore scroll position
-			task.wait()
-			if Window.TabScrollPositions[Tab] then
-				ContentContainer.CanvasPosition = Vector2.new(0, Window.TabScrollPositions[Tab])
-			else
-				ContentContainer.CanvasPosition = Vector2.new(0, 0)
-			end
+			TabContent.Visible = true
 		end))
 
 		Tab.Button = TabButton
-		Tab.Elements = {}
-		Tab.Name = name
+		Tab.Content = TabContent
 
 		table.insert(Window.Tabs, Tab)
-
-		if isFirstTab then
-			Window.CurrentTab = Tab
-		end
+		if isFirstTab then Window.CurrentTab = Tab end
 
 		function Tab:AddParagraph(titleText, contentText)
-			-- Validate input
-			if type(titleText) ~= "string" then titleText = tostring(titleText or "") end
-			if type(contentText) ~= "string" then contentText = tostring(contentText or "") end
+			titleText = tostring(titleText or "")
+			contentText = tostring(contentText or "")
 
-			local Paragraph = {
-				Type = "Paragraph",
-				Title = titleText,
-				Content = contentText,
-				Visible = true
-			}
-
+			local Paragraph = {Type = "Paragraph", Title = titleText, Content = contentText, Visible = true}
 			table.insert(Tab.Elements, Paragraph)
-			Window:RefreshContent()
+			Tab:Render()
 
 			return {
-				Hide = function()
-					Paragraph.Visible = false
-					Window:RefreshContent()
-				end,
-				Show = function()
-					Paragraph.Visible = true
-					Window:RefreshContent()
-				end,
-				SetTitle = function(self, newTitle)
-					Paragraph.Title = tostring(newTitle or "")
-					Window:RefreshContent()
-				end,
-				SetContent = function(self, newContent)
-					Paragraph.Content = tostring(newContent or "")
-					Window:RefreshContent()
-				end
+				Hide = function() Paragraph.Visible = false Tab:Render() end,
+				Show = function() Paragraph.Visible = true Tab:Render() end
 			}
 		end
 
 		function Tab:AddButton(text, callback)
-			if type(text) ~= "string" then text = tostring(text or "Button") end
+			text = tostring(text or "Button")
 			if type(callback) ~= "function" then callback = function() end end
 
-			local Button = {
-				Type = "Button",
-				Text = text,
-				Callback = callback,
-				Visible = true
-			}
-
+			local Button = {Type = "Button", Text = text, Callback = callback, Visible = true}
 			table.insert(Tab.Elements, Button)
-			Window:RefreshContent()
+			Tab:Render()
 
 			return {
-				Hide = function()
-					Button.Visible = false
-					Window:RefreshContent()
-				end,
-				Show = function()
-					Button.Visible = true
-					Window:RefreshContent()
-				end,
-				SetText = function(self, newText)
-					Button.Text = tostring(newText or "")
-					Window:RefreshContent()
-				end
+				Hide = function() Button.Visible = false Tab:Render() end,
+				Show = function() Button.Visible = true Tab:Render() end
 			}
 		end
 
 		function Tab:AddToggle(text, default, callback)
-			if type(text) ~= "string" then text = tostring(text or "Toggle") end
+			text = tostring(text or "Toggle")
 			if type(default) ~= "boolean" then default = false end
 			if type(callback) ~= "function" then callback = function() end end
 
-			local Toggle = {
-				Type = "Toggle",
-				Text = text,
-				Value = default,
-				Callback = callback,
-				Visible = true
-			}
-
+			local Toggle = {Type = "Toggle", Text = text, Value = default, Callback = callback, Visible = true}
 			table.insert(Tab.Elements, Toggle)
-			Window:RefreshContent()
+			Tab:Render()
 
 			return {
-				Set = function(self, value)
+				Set = function(_, value)
 					if type(value) == "boolean" then
 						Toggle.Value = value
-						Window:RefreshContent()
+						Tab:Render()
 					end
 				end,
-				Hide = function()
-					Toggle.Visible = false
-					Window:RefreshContent()
-				end,
-				Show = function()
-					Toggle.Visible = true
-					Window:RefreshContent()
-				end
+				Hide = function() Toggle.Visible = false Tab:Render() end,
+				Show = function() Toggle.Visible = true Tab:Render() end
 			}
+		end
+
+		function Tab:Render()
+			for _, child in pairs(TabContent:GetChildren()) do
+				if child:IsA("Frame") then child:Destroy() end
+			end
+
+			for _, element in pairs(Tab.Elements) do
+				if not element.Visible then continue end
+
+				if element.Type == "Paragraph" then
+					local Paragraph = New("Frame", {
+						Parent = TabContent,
+						BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+						BorderSizePixel = 0,
+						Size = UDim2.new(1, 0, 0, 0),
+						AutomaticSize = Enum.AutomaticSize.Y
+					})
+
+					New("UICorner", {CornerRadius = UDim.new(0.05, 0), Parent = Paragraph})
+					New("UIStroke", {Color = Color3.fromRGB(25, 25, 25), Thickness = 1, Parent = Paragraph})
+					New("UIPadding", {
+						Parent = Paragraph,
+						PaddingBottom = UDim.new(0, 12),
+						PaddingLeft = UDim.new(0, 12),
+						PaddingRight = UDim.new(0, 12),
+						PaddingTop = UDim.new(0, 12)
+					})
+
+					local Container = New("Frame", {
+						Parent = Paragraph,
+						BackgroundTransparency = 1,
+						Size = UDim2.new(1, 0, 0, 0),
+						AutomaticSize = Enum.AutomaticSize.Y
+					})
+
+					New("UIListLayout", {
+						Parent = Container,
+						SortOrder = Enum.SortOrder.LayoutOrder,
+						Padding = UDim.new(0, 4)
+					})
+
+					New("TextLabel", {
+						Parent = Container,
+						BackgroundTransparency = 1,
+						Size = UDim2.new(1, 0, 0, 0),
+						Font = Enum.Font.GothamMedium,
+						Text = element.Title,
+						TextColor3 = Color3.fromRGB(255, 255, 255),
+						TextSize = 14,
+						TextWrapped = true,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						TextYAlignment = Enum.TextYAlignment.Top,
+						AutomaticSize = Enum.AutomaticSize.Y,
+						LayoutOrder = 1
+					})
+
+					New("TextLabel", {
+						Parent = Container,
+						BackgroundTransparency = 1,
+						Size = UDim2.new(1, 0, 0, 0),
+						Font = Enum.Font.Gotham,
+						Text = element.Content,
+						TextColor3 = Color3.fromRGB(150, 150, 150),
+						TextSize = 13,
+						TextWrapped = true,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						TextYAlignment = Enum.TextYAlignment.Top,
+						AutomaticSize = Enum.AutomaticSize.Y,
+						LayoutOrder = 2
+					})
+
+				elseif element.Type == "Button" then
+					local ButtonFrame = New("Frame", {
+						Parent = TabContent,
+						BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+						BorderSizePixel = 0,
+						Size = UDim2.new(1, 0, 0, 42)
+					})
+
+					New("UICorner", {CornerRadius = UDim.new(0.1, 0), Parent = ButtonFrame})
+					New("UIStroke", {Color = Color3.fromRGB(25, 25, 25), Thickness = 1, Parent = ButtonFrame})
+
+					New("TextLabel", {
+						Parent = ButtonFrame,
+						BackgroundTransparency = 1,
+						Position = UDim2.new(0.026, 0, 0, 0),
+						Size = UDim2.new(0.95, 0, 1, 0),
+						Font = Enum.Font.GothamMedium,
+						Text = element.Text,
+						TextColor3 = Color3.fromRGB(255, 255, 255),
+						TextSize = 14,
+						TextXAlignment = Enum.TextXAlignment.Left
+					})
+
+					local ClickButton = New("TextButton", {
+						Parent = ButtonFrame,
+						BackgroundTransparency = 1,
+						Size = UDim2.new(1, 0, 1, 0),
+						Text = "",
+						AutoButtonColor = false
+					})
+
+					ClickButton.MouseButton1Click:Connect(function()
+						pcall(function()
+							TweenService:Create(ButtonFrame, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
+							task.spawn(function()
+								task.wait(0.1)
+								TweenService:Create(ButtonFrame, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
+							end)
+							element.Callback()
+						end)
+					end)
+
+				elseif element.Type == "Toggle" then
+					local ToggleFrame = New("Frame", {
+						Parent = TabContent,
+						BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+						BorderSizePixel = 0,
+						Size = UDim2.new(1, 0, 0, 42)
+					})
+
+					New("UICorner", {CornerRadius = UDim.new(0.1, 0), Parent = ToggleFrame})
+					New("UIStroke", {Color = Color3.fromRGB(25, 25, 25), Thickness = 1, Parent = ToggleFrame})
+
+					New("TextLabel", {
+						Parent = ToggleFrame,
+						BackgroundTransparency = 1,
+						Position = UDim2.new(0.026, 0, 0, 0),
+						Size = UDim2.new(0.85, 0, 1, 0),
+						Font = Enum.Font.GothamMedium,
+						Text = element.Text,
+						TextColor3 = Color3.fromRGB(255, 255, 255),
+						TextSize = 14,
+						TextXAlignment = Enum.TextXAlignment.Left
+					})
+
+					local Indicator = New("Frame", {
+						Parent = ToggleFrame,
+						AnchorPoint = Vector2.new(1, 0.5),
+						BackgroundColor3 = element.Value and Color3.fromRGB(230, 230, 230) or Color3.fromRGB(30, 30, 30),
+						BorderSizePixel = 0,
+						Position = UDim2.new(0.975, 0, 0.5, 0),
+						Size = UDim2.new(0, 20, 0, 20)
+					})
+
+					New("UICorner", {CornerRadius = UDim.new(0.2, 0), Parent = Indicator})
+					New("UIStroke", {Color = Color3.fromRGB(25, 25, 25), Thickness = 1, Parent = Indicator})
+
+					local ClickButton = New("TextButton", {
+						Parent = ToggleFrame,
+						BackgroundTransparency = 1,
+						Size = UDim2.new(1, 0, 1, 0),
+						Text = "",
+						AutoButtonColor = false
+					})
+
+					ClickButton.MouseButton1Click:Connect(function()
+						pcall(function()
+							element.Value = not element.Value
+							TweenService:Create(Indicator, TweenInfo.new(0.2), {
+								BackgroundColor3 = element.Value and Color3.fromRGB(230, 230, 230) or Color3.fromRGB(30, 30, 30)
+							}):Play()
+							element.Callback(element.Value)
+						end)
+					end)
+				end
+			end
 		end
 
 		return Tab
 	end
 
-	function Window:RefreshContent()
-		-- Clear existing content
-		for _, child in pairs(ContentContainer:GetChildren()) do
-			if child:IsA("Frame") then
-				child:Destroy()
-			end
-		end
-
-		if not Window.CurrentTab then return end
-
-		local cacheKey = Window.CurrentTab.Name
-
-		for _, element in pairs(Window.CurrentTab.Elements) do
-			if not element.Visible then continue end
-
-			if element.Type == "Paragraph" then
-				local Paragraph = New("Frame", {
-					Name = "Paragraph",
-					Parent = ContentContainer,
-					BackgroundColor3 = Color3.fromRGB(20, 20, 20),
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 0, 100)
-				})
-
-				New("UICorner", {
-					CornerRadius = UDim.new(0.05, 0),
-					Parent = Paragraph
-				})
-
-				New("UIStroke", {
-					Color = Color3.fromRGB(25, 25, 25),
-					Thickness = 1,
-					Parent = Paragraph
-				})
-
-				New("UIPadding", {
-					Parent = Paragraph,
-					PaddingBottom = UDim.new(0, 12),
-					PaddingLeft = UDim.new(0, 12),
-					PaddingRight = UDim.new(0, 12),
-					PaddingTop = UDim.new(0, 12)
-				})
-
-				local TitleLabel = New("TextLabel", {
-					Name = "Title",
-					Parent = Paragraph,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, 0, 0, 20),
-					Font = Enum.Font.GothamMedium,
-					Text = element.Title,
-					TextColor3 = Color3.fromRGB(255, 255, 255),
-					TextSize = 14,
-					TextWrapped = true,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					TextYAlignment = Enum.TextYAlignment.Top
-				})
-
-				local ContentLabel = New("TextLabel", {
-					Name = "Content",
-					Parent = Paragraph,
-					BackgroundTransparency = 1,
-					Position = UDim2.new(0, 0, 0, 22),
-					Size = UDim2.new(1, 0, 1, -22),
-					Font = Enum.Font.Gotham,
-					Text = element.Content,
-					TextColor3 = Color3.fromRGB(150, 150, 150),
-					TextSize = 13,
-					TextWrapped = true,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					TextYAlignment = Enum.TextYAlignment.Top
-				})
-
-				-- Safe text size calculation with error handling
-				task.spawn(function()
-					task.wait()
-					local success, result = pcall(function()
-						local textService = game:GetService("TextService")
-						local width = math.max(Paragraph.AbsoluteSize.X - 24, 100)
-						local titleSize = textService:GetTextSize(element.Title, 14, Enum.Font.GothamMedium, Vector2.new(width, math.huge))
-						local contentSize = textService:GetTextSize(element.Content, 13, Enum.Font.Gotham, Vector2.new(width, math.huge))
-						return titleSize.Y + contentSize.Y + 32
-					end)
-
-					if success and type(result) == "number" and result > 0 then
-						Paragraph.Size = UDim2.new(1, 0, 0, math.clamp(result, 50, 1000))
-					else
-						-- Fallback size if calculation fails
-						Paragraph.Size = UDim2.new(1, 0, 0, 100)
-					end
-				end)
-
-			elseif element.Type == "Button" then
-				local ButtonFrame = New("Frame", {
-					Name = "Button",
-					Parent = ContentContainer,
-					BackgroundColor3 = Color3.fromRGB(20, 20, 20),
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 0, 42)
-				})
-
-				New("UICorner", {
-					CornerRadius = UDim.new(0.1, 0),
-					Parent = ButtonFrame
-				})
-
-				New("UIStroke", {
-					Color = Color3.fromRGB(25, 25, 25),
-					Thickness = 1,
-					Parent = ButtonFrame
-				})
-
-				New("TextLabel", {
-					Parent = ButtonFrame,
-					BackgroundTransparency = 1,
-					Position = UDim2.new(0.026, 0, 0, 0),
-					Size = UDim2.new(0.95, 0, 1, 0),
-					Font = Enum.Font.GothamMedium,
-					Text = element.Text,
-					TextColor3 = Color3.fromRGB(255, 255, 255),
-					TextSize = 14,
-					TextXAlignment = Enum.TextXAlignment.Left
-				})
-
-				local ClickButton = New("TextButton", {
-					Parent = ButtonFrame,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, 0, 1, 0),
-					Text = "",
-					AutoButtonColor = false
-				})
-
-				addConnection(ClickButton.MouseButton1Click:Connect(function()
-					TweenService:Create(ButtonFrame, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
-					task.wait(0.1)
-					TweenService:Create(ButtonFrame, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
-
-					pcall(function()
-						if element.Callback then
-							element.Callback()
-						end
-					end)
-				end))
-
-			elseif element.Type == "Toggle" then
-				local ToggleFrame = New("Frame", {
-					Name = "Toggle",
-					Parent = ContentContainer,
-					BackgroundColor3 = Color3.fromRGB(20, 20, 20),
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 0, 42)
-				})
-
-				New("UICorner", {
-					CornerRadius = UDim.new(0.1, 0),
-					Parent = ToggleFrame
-				})
-
-				New("UIStroke", {
-					Color = Color3.fromRGB(25, 25, 25),
-					Thickness = 1,
-					Parent = ToggleFrame
-				})
-
-				New("TextLabel", {
-					Parent = ToggleFrame,
-					BackgroundTransparency = 1,
-					Position = UDim2.new(0.026, 0, 0, 0),
-					Size = UDim2.new(0.85, 0, 1, 0),
-					Font = Enum.Font.GothamMedium,
-					Text = element.Text,
-					TextColor3 = Color3.fromRGB(255, 255, 255),
-					TextSize = 14,
-					TextXAlignment = Enum.TextXAlignment.Left
-				})
-
-				local Indicator = New("Frame", {
-					Parent = ToggleFrame,
-					AnchorPoint = Vector2.new(1, 0.5),
-					BackgroundColor3 = element.Value and Color3.fromRGB(230, 230, 230) or Color3.fromRGB(30, 30, 30),
-					BorderSizePixel = 0,
-					Position = UDim2.new(0.975, 0, 0.5, 0),
-					Size = UDim2.new(0, 20, 0, 20)
-				})
-
-				New("UICorner", {
-					CornerRadius = UDim.new(0.2, 0),
-					Parent = Indicator
-				})
-
-				New("UIStroke", {
-					Color = Color3.fromRGB(25, 25, 25),
-					Thickness = 1,
-					Parent = Indicator
-				})
-
-				local ClickButton = New("TextButton", {
-					Parent = ToggleFrame,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, 0, 1, 0),
-					Text = "",
-					AutoButtonColor = false
-				})
-
-				addConnection(ClickButton.MouseButton1Click:Connect(function()
-					element.Value = not element.Value
-
-					TweenService:Create(Indicator, TweenInfo.new(0.2), {
-						BackgroundColor3 = element.Value and Color3.fromRGB(230, 230, 230) or Color3.fromRGB(30, 30, 30)
-					}):Play()
-
-					pcall(function()
-						if element.Callback then
-							element.Callback(element.Value)
-						end
-					end)
-				end))
-			end
-		end
-	end
-
 	function Window:Destroy()
-		for _, conn in pairs(connections) do
-			pcall(function()
-				conn:Disconnect()
-			end)
-		end
-
-		Window.CachedContent = nil
-		Window.TabScrollPositions = nil
-
 		pcall(function()
-			SeizureUI:Destroy()
-		end)
-
-		-- Remove from library
-		for i, win in pairs(Library.Windows) do
-			if win == Window then
-				table.remove(Library.Windows, i)
-				break
+			for _, connection in pairs(Window.Connections) do
+				if typeof(connection) == "RBXScriptConnection" then
+					connection:Disconnect()
+				end
 			end
-		end
+			if dragTween then dragTween:Cancel() end
+			SeizureUI:Destroy()
+			for i, win in pairs(Library.Windows) do
+				if win == Window then
+					table.remove(Library.Windows, i)
+					break
+				end
+			end
+		end)
 	end
 
 	table.insert(Library.Windows, Window)
