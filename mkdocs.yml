@@ -1,0 +1,15 @@
+site_name: "Seizure UI Docs"
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Getting Started: getting-started.md
+  - Components:
+      - Window: components/window.md
+      - Tab: components/tab.md
+      - Button: components/button.md
+      - Toggle: components/toggle.md
+theme:
+  name: "material"
+  palette:
+    primary: "indigo"
+    accent: "cyan"
