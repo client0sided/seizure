@@ -1,33 +1,29 @@
 # SeizureUI
 
-A lightweight, script-loadable UI library for Roblox developers who want
-quick, clean interfaces without building everything from scratch.
+A lightweight, script-loadable UI library for Roblox developers who want quick, clean interfaces without rebuilding everything from scratch.
 
 ## Features
 
--   Window creation with title bars\a
--   Tabs and tab switching\
--   Buttons, toggles, sliders and basic inputs\
--   Simple theming system\
--   Minimal performance overhead\
--   Designed for easy drop-in use through `loadstring`
+- Window creation with title bars  
+- Tabs and tab switching  
+- Buttons and toggles
+- Minimal performance impact
 
 ## Installation
 
-Load the library at runtime with:
+Load the library at runtime:
 
-``` lua
-local SeizureUI = loadstring(game:HttpGet("YOUR_URL_HERE"))()
+```lua
+local SeizureUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/client0sided/seizure/refs/heads/main/Main.luau"))()
 ```
 
-Replace `YOUR_URL_HERE` with the actual script URL where the library is
-hosted.
+Replace `YOUR_URL_HERE` with the URL where the library is hosted.
 
 ## Basic Usage
 
 ### Create a Window
 
-``` lua
+```lua
 local win = SeizureUI:CreateWindow({
     Title = "My Window",
     Size = UDim2.fromOffset(450, 300)
@@ -36,13 +32,13 @@ local win = SeizureUI:CreateWindow({
 
 ### Add a Tab
 
-``` lua
+```lua
 local tab = win:AddTab("Controls")
 ```
 
 ### Add a Button
 
-``` lua
+```lua
 tab:AddButton("Click Me", function()
     print("Button pressed")
 end)
@@ -50,7 +46,7 @@ end)
 
 ### Add a Toggle
 
-``` lua
+```lua
 tab:AddToggle("Auto Mode", false, function(state)
     print("Toggle state:", state)
 end)
@@ -58,14 +54,12 @@ end)
 
 ## Notes
 
--   Works only in environments where `loadstring` and `HttpGet` are
-    allowed.\
--   Not an official Roblox library. Use at your own risk.\
--   Always inspect the source script before running it.\
--   UI may behave differently depending on exploit environment or Roblox
-    updates.
+- Works only in environments where `loadstring` and `HttpGet` are enabled.  
+- Not an official Roblox library; use at your own risk.  
+- Always inspect external scripts before running them.  
+- UI behavior may vary depending on the exploit environment or Roblox updates.
 
 ## Credits
 
-Created by the original authors of SeizureUI.\
-Edits and forks should credit the source appropriately.
+Created by the original developers of SeizureUI.  
+Please credit the source appropriately when creating edits or forks.
