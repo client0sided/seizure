@@ -17,8 +17,6 @@ Load the library at runtime:
 local SeizureUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/client0sided/seizure/refs/heads/main/Main.luau"))()
 ```
 
-## Basic Usage
-
 ### Create a Window
 
 ```lua
