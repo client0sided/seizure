@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seizure UI Docs</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 20px;
+    line-height: 1.6;
+    background-color: #f9f9f9;
+    color: #333;
+  }
+  h1, h2, h3 { color: #2c3e50; }
+  pre { background: #eee; padding: 10px; overflow-x: auto; }
+  code { background: #eee; padding: 2px 4px; }
+  hr { margin: 2em 0; }
+</style>
+</head>
+<body>
+
+<div id="content">Loading...</div>
+
+<script>
+  fetch('README.md')
+    .then(response => response.text())
+    .then(md => {
+      document.getElementById('content').innerHTML = marked.parse(md);
+    })
+    .catch(err => {
+      document.getElementById('content').innerHTML = 'Failed to load README.md';
+      console.error(err);
+    });
+</script>
+
+</body>
+</html>
